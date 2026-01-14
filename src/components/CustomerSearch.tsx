@@ -14,11 +14,11 @@ const CustomerSearch = ({ entries }: CustomerSearchProps) => {
 
   const customerSummaries = useMemo(() => {
     const summaryMap = new Map<string, CustomerSummary>();
-    
+
     entries.forEach((entry) => {
       const key = entry.customerName.toLowerCase();
       const existing = summaryMap.get(key);
-      
+
       if (existing) {
         existing.totalAmount += entry.amount;
         existing.entries.push(entry);
@@ -31,14 +31,14 @@ const CustomerSearch = ({ entries }: CustomerSearchProps) => {
       }
     });
 
-    return Array.from(summaryMap.values()).sort((a, b) => 
+    return Array.from(summaryMap.values()).sort((a, b) =>
       b.totalAmount - a.totalAmount
     );
   }, [entries]);
 
   const filteredCustomers = useMemo(() => {
     if (!searchQuery.trim()) return customerSummaries;
-    
+
     const query = searchQuery.toLowerCase();
     return customerSummaries.filter((customer) =>
       customer.name.toLowerCase().includes(query)
@@ -122,7 +122,7 @@ const CustomerSearch = ({ entries }: CustomerSearchProps) => {
                     <p className="font-heading font-semibold text-primary">
                       ₹{customer.totalAmount.toLocaleString("en-IN")}
                     </p>
-                    <p className="text-xs text-muted-foreground">Total</p>
+                    <p className="text-xs text-muted-foreground">Balance</p>
                   </div>
                   {expandedCustomer === customer.name ? (
                     <ChevronUp className="w-4 h-4 text-muted-foreground" />
@@ -140,21 +140,34 @@ const CustomerSearch = ({ entries }: CustomerSearchProps) => {
                     </p>
                     {customer.entries
                       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                      .map((entry) => (
-                        <div
-                          key={entry.id}
-                          className="flex items-center justify-between py-2 border-b border-border/30 last:border-0"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-3 h-3 text-muted-foreground" />
-                            <span className="text-sm">{formatDate(entry.date)}</span>
+                      .map((entry) => {
+                        const isPayment = entry.amount < 0;
+                        const displayAmount = Math.abs(entry.amount);
+
+                        return (
+                          <div
+                            key={entry.id}
+                            className="flex items-center justify-between py-2 border-b border-border/30 last:border-0"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-3 h-3 text-muted-foreground" />
+                              <span className="text-sm">{formatDate(entry.date)}</span>
+                              {isPayment && (
+                                <span className="ml-2 text-xs bg-green-500/10 text-green-600 px-1.5 py-0.5 rounded font-medium">
+                                  Payment
+                                </span>
+                              )}
+                            </div>
+                            <div className={cn(
+                              "flex items-center gap-1 text-sm font-medium",
+                              isPayment ? "text-green-600" : "text-foreground"
+                            )}>
+                              <IndianRupee className="w-3 h-3" />
+                              {displayAmount.toLocaleString("en-IN")}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1 text-sm font-medium">
-                            <IndianRupee className="w-3 h-3" />
-                            {entry.amount.toLocaleString("en-IN")}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                   </div>
                 </div>
               )}

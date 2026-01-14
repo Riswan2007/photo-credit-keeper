@@ -6,23 +6,19 @@ const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyroshk6e2c9p
 export const GoogleSheetsService = {
     addEntry: async (entry: CreditEntry): Promise<boolean> => {
         try {
-            // We use no-cors mode because Google Apps Script redirects responses, 
-            // which can cause CORS issues even with proper headers in some environments.
-            // Ideally, with correct headers, standard CORS works, but 'no-cors' is safer for fire-and-forget.
-            // However, to check success, we try standard fetch first.
-
+            // We use no-cors mode strictly to avoid browser blocking.
+            // In this mode, we cannot read the response status (it is opaque),
+            // so we assume success if the fetch call doesn't throw a network error.
             const response = await fetch(GOOGLE_SCRIPT_URL, {
                 method: "POST",
+                mode: "no-cors",
                 headers: {
-                    "Content-Type": "text/plain;charset=utf-8", // text/plain avoids preflight OPTIONS in some cases
+                    "Content-Type": "text/plain;charset=utf-8",
                 },
                 body: JSON.stringify(entry),
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
+            // With no-cors, we can't check response.ok. It will always appear 'opaque'.
             return true;
         } catch (error) {
             console.error("Error saving to Google Sheets:", error);
