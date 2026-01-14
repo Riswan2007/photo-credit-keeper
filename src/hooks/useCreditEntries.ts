@@ -1,37 +1,35 @@
 import { useState, useCallback, useEffect } from "react";
+import { GoogleSheetsService } from "@/lib/GoogleSheetsService";
 import { CreditEntry } from "@/types/credit";
 import { toast } from "sonner";
-
-const STORAGE_KEY = "credit-entries";
 
 export const useCreditEntries = () => {
   const [entries, setEntries] = useState<CreditEntry[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load entries from localStorage on mount
+  // Load entries from Google Sheets on mount
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
+    const fetchEntries = async () => {
       try {
-        setEntries(JSON.parse(stored));
-      } catch (e) {
-        console.error("Failed to parse stored entries:", e);
+        setIsLoading(true);
+        const fetchedEntries = await GoogleSheetsService.getEntries();
+        // Sort by date desc (optional, assuming new entries might be appended at end)
+        setEntries(fetchedEntries.reverse());
+      } catch (error) {
+        toast.error("Failed to load records from cloud.");
+      } finally {
+        setIsLoading(false);
       }
-    }
-  }, []);
+    };
 
-  // Save to localStorage whenever entries change
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  }, [entries]);
+    fetchEntries();
+  }, []);
 
   const addEntry = useCallback(async (customerName: string, amount: number) => {
     setIsSaving(true);
-    
-    try {
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 500));
 
+    try {
       const newEntry: CreditEntry = {
         id: crypto.randomUUID(),
         date: new Date().toISOString().split("T")[0],
@@ -42,15 +40,22 @@ export const useCreditEntries = () => {
         amount,
       };
 
-      setEntries((prev) => [newEntry, ...prev]);
-      toast.success("Credit entry saved successfully!", {
-        description: `₹${amount.toLocaleString("en-IN")} for ${newEntry.customerName}`,
-      });
-      
-      return true;
+      // Save to Google Sheets
+      const success = await GoogleSheetsService.addEntry(newEntry);
+
+      if (success) {
+        setEntries((prev) => [newEntry, ...prev]);
+        toast.success("Credit entry saved to Google Sheets!", {
+          description: `₹${amount.toLocaleString("en-IN")} for ${newEntry.customerName}`,
+        });
+        return true;
+      } else {
+        throw new Error("Failed to save to cloud");
+      }
+
     } catch (error) {
       toast.error("Failed to save entry", {
-        description: "Please try again",
+        description: "Please try again. Check your internet connection.",
       });
       return false;
     } finally {
@@ -58,5 +63,5 @@ export const useCreditEntries = () => {
     }
   }, []);
 
-  return { entries, addEntry, isSaving };
+  return { entries, addEntry, isSaving, isLoading };
 };
