@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Mic, MicOff, Save, Check, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,6 +13,14 @@ interface VoiceInputProps {
 
 const VoiceInput = ({ onSave, isSaving }: VoiceInputProps) => {
     const { isListening, transcript, parsedEntries, startListening, stopListening, reset, error } = useVoiceInput();
+    const [editableEntries, setEditableEntries] = useState<any[]>([]); // editable entries with string amounts
+
+    // Sync parsed entries to editable state
+    useEffect(() => {
+        if (parsedEntries.length > 0) {
+            setEditableEntries(parsedEntries.map(e => ({ ...e })));
+        }
+    }, [parsedEntries]);
 
     useEffect(() => {
         if (error) {
@@ -28,12 +36,36 @@ const VoiceInput = ({ onSave, isSaving }: VoiceInputProps) => {
         }
     };
 
+    const handleEntryChange = (index: number, field: 'name' | 'amount', value: string) => {
+        setEditableEntries(prev => {
+            const updated = [...prev];
+            if (field === 'amount') {
+                updated[index][field] = value.replace(/[^0-9]/g, '');
+            } else {
+                updated[index][field] = value;
+            }
+            return updated;
+        });
+    };
+
+    const handleDelete = (index: number) => {
+        setEditableEntries(prev => prev.filter((_, i) => i !== index));
+    };
+
     const handleSave = () => {
-        if (parsedEntries.length === 0) {
+        if (editableEntries.length === 0) {
             toast.error("No valid entries found to save.");
             return;
         }
-        onSave(parsedEntries);
+        // Convert amount to number and include originalText
+        const finalEntries = editableEntries.map(e => ({
+            name: e.name.trim(),
+            amount: Number(e.amount),
+            originalText: e.originalText ?? ""
+        }));
+        onSave(finalEntries);
+        setEditableEntries([]);
+        reset();
     };
 
     return (
@@ -68,44 +100,53 @@ const VoiceInput = ({ onSave, isSaving }: VoiceInputProps) => {
             </div>
 
             {/* Transcript Preview */}
-            {(transcript || parsedEntries.length > 0) && (
+            {(transcript || editableEntries.length > 0) && (
                 <div className="w-full max-w-md space-y-4 animate-in fade-in slide-in-from-bottom-4">
 
                     {/* Live Transcript */}
                     <div className="bg-muted/50 p-4 rounded-lg text-sm italic text-muted-foreground min-h-[60px] border border-dashed text-center">
-                        "{transcript || "..."}"
+                        {transcript || "..."}
                     </div>
 
-                    {/* Parsed Entries Results */}
+                    {/* Editable Entries */}
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                            <h4 className="text-sm font-medium text-foreground">Detected Entries ({parsedEntries.length})</h4>
+                            <h4 className="text-sm font-medium text-foreground">Detected Entries ({editableEntries.length})</h4>
                             <Button variant="ghost" size="sm" onClick={reset} className="h-8 text-xs text-muted-foreground hover:text-foreground">
                                 <RefreshCw className="mr-1 h-3 w-3" />
                                 Clear
                             </Button>
                         </div>
 
-                        {parsedEntries.length === 0 && transcript.length > 10 && (
+                        {editableEntries.length === 0 && transcript.length > 10 && (
                             <p className="text-sm text-destructive text-center py-2">
                                 Could not recognize names/amounts. Try speaking clearer.
                             </p>
                         )}
 
                         <div className="grid gap-2">
-                            {parsedEntries.map((entry, idx) => (
-                                <Card key={idx} className="bg-card/50 border-primary/20">
-                                    <CardContent className="p-3 flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="bg-primary/10 p-2 rounded-full">
-                                                <Check className="h-4 w-4 text-primary" />
-                                            </div>
-                                            <div>
-                                                <p className="font-medium capitalize">{entry.name}</p>
-                                                <p className="text-xs text-muted-foreground">Original: "{entry.originalText}"</p>
-                                            </div>
+                            {editableEntries.map((entry, idx) => (
+                                <Card key={idx} className="bg-card/50 border-primary/20 p-2">
+                                    <CardContent className="p-2 flex items-center justify-between">
+                                        <div className="flex flex-col gap-1 w-full">
+                                            <input
+                                                type="text"
+                                                value={entry.name}
+                                                onChange={e => handleEntryChange(idx, 'name', e.target.value)}
+                                                className="border-b border-muted bg-transparent focus:outline-none text-base"
+                                                placeholder="Name"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={entry.amount}
+                                                onChange={e => handleEntryChange(idx, 'amount', e.target.value)}
+                                                className="border-b border-muted bg-transparent focus:outline-none text-base"
+                                                placeholder="Amount"
+                                            />
                                         </div>
-                                        <span className="text-lg font-bold">₹{entry.amount}</span>
+                                        <Button variant="ghost" size="sm" onClick={() => handleDelete(idx)}>
+                                            <RefreshCw className="h-4 w-4" />
+                                        </Button>
                                     </CardContent>
                                 </Card>
                             ))}
@@ -116,16 +157,9 @@ const VoiceInput = ({ onSave, isSaving }: VoiceInputProps) => {
                         className="w-full"
                         size="lg"
                         onClick={handleSave}
-                        disabled={parsedEntries.length === 0 || isSaving}
+                        disabled={editableEntries.length === 0 || isSaving}
                     >
-                        {isSaving ? (
-                            "Saving..."
-                        ) : (
-                            <>
-                                <Save className="mr-2 h-4 w-4" />
-                                Save All Entries
-                            </>
-                        )}
+                        {isSaving ? "Saving..." : <><Save className="mr-2 h-4 w-4" />Save All Entries</>}
                     </Button>
                 </div>
             )}

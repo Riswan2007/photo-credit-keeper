@@ -69,7 +69,7 @@ export const useVoiceInput = () => {
         if (SpeechRecognition) {
             const recognitionInstance = new SpeechRecognition();
             recognitionInstance.continuous = true;
-            recognitionInstance.interimResults = true;
+            recognitionInstance.interimResults = false;
             recognitionInstance.lang = "en-US"; // Default to English, capable of picking up names
 
             recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
