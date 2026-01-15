@@ -1,44 +1,40 @@
 import { useState } from "react";
 import Header from "@/components/Header";
-import ImageUpload from "@/components/ImageUpload";
+import VoiceInput from "@/components/VoiceInput";
 import TransactionForm from "@/components/TransactionForm";
 import StatsCards from "@/components/StatsCards";
 import CustomerSearch from "@/components/CustomerSearch";
-import { useOCR } from "@/hooks/useOCR";
 import { useCreditEntries } from "@/hooks/useCreditEntries";
+import { ParsedVoiceEntry } from "@/hooks/useVoiceInput";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Camera, PenTool } from "lucide-react";
+import { Mic, PenTool } from "lucide-react";
 
 const Index = () => {
-  const { extractText, isProcessing, extractedData, error, clearData } = useOCR();
   const { entries, addEntry, isSaving } = useCreditEntries();
-  const [imageKey, setImageKey] = useState(0);
-  const [activeTab, setActiveTab] = useState("scan");
+  // We can treat "form" as the manual entry, and "voice" as the new default
+  const [activeTab, setActiveTab] = useState("voice");
 
-  const handleImageSelect = async (file: File) => {
-    setActiveTab("form"); // Switch to form tab after scan
-    await extractText(file);
-  };
+  // Handle saving multiple entries from Voice Input
+  const handleVoiceSave = async (voiceEntries: ParsedVoiceEntry[]) => {
+    let successCount = 0;
 
-  const handleSave = async (name: string, amount: number) => {
-    const success = await addEntry(name, amount);
-    if (success) {
-      clearData();
-      setImageKey((prev) => prev + 1);
-      setActiveTab("scan"); // Reset to scan tab
+    // Save sequentially to ensure order (optional, parallel is also fine)
+    for (const entry of voiceEntries) {
+      const success = await addEntry(entry.name, entry.amount);
+      if (success) successCount++;
+    }
+
+    if (successCount > 0) {
+      toast.success(`Successfully added ${successCount} entries!`);
+      // Stay on voice tab for more input? Or switch?
+      // Usually better to stay to allow next batch.
     }
   };
 
-  // Switch to form tab if extraction completes
-  if (extractedData && activeTab !== "form") {
-    setActiveTab("form");
-  }
-
-  // Show OCR error if any
-  if (error) {
-    toast.error(error);
-  }
+  const handleManualSave = async (name: string, amount: number) => {
+    await addEntry(name, amount);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -53,31 +49,24 @@ const Index = () => {
           <div className="space-y-6">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="scan" className="flex items-center gap-2">
-                  <Camera className="w-4 h-4" />
-                  Scan Bill
+                <TabsTrigger value="voice" className="flex items-center gap-2">
+                  <Mic className="w-4 h-4" />
+                  Voice Input
                 </TabsTrigger>
                 <TabsTrigger value="form" className="flex items-center gap-2">
                   <PenTool className="w-4 h-4" />
-                  Enter Details
+                  Manual Entry
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="scan">
-                <ImageUpload
-                  key={imageKey}
-                  onImageSelect={handleImageSelect}
-                  isProcessing={isProcessing}
-                />
-                <p className="text-sm text-center text-muted-foreground mt-4">
-                  Scanning will automatically fill the details in the "Enter Details" tab.
-                </p>
+              <TabsContent value="voice">
+                <VoiceInput onSave={handleVoiceSave} isSaving={isSaving} />
               </TabsContent>
 
               <TabsContent value="form">
                 <TransactionForm
-                  extractedData={extractedData}
-                  onSave={handleSave}
+                  extractedData={null}
+                  onSave={handleManualSave}
                   isSaving={isSaving}
                 />
               </TabsContent>
